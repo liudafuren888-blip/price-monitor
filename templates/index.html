@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时行情监控</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #1a73e8;
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --up-color: #d32f2f;
+            --up-bg: #fde8e8;
+            --down-color: #059669;
+            --down-bg: #def7ec;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            background: var(--card-bg);
+            padding: 20px 24px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            padding: 24px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        .section-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title::before {
+            content: '';
+            display: block;
+            width: 4px;
+            height: 18px;
+            background-color: var(--primary-color);
+            margin-right: 12px;
+            border-radius: 2px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        th, td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: #f9fafb;
+            color: var(--text-secondary);
+            font-weight: 600;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        th:first-child { border-top-left-radius: 8px; }
+        th:last-child { border-top-right-radius: 8px; }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: #f9fafb;
+        }
+
+        .asset-link {
+            text-decoration: none;
+            color: var(--text-primary);
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+
+        .asset-link:hover {
+            color: var(--primary-color);
+        }
+
+        .price {
+            font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+            font-weight: 600;
+        }
+
+        .change-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 10px;
+            border-radius: 9999px;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .up {
+            color: var(--up-color);
+            background-color: var(--up-bg);
+        }
+
+        .down {
+            color: var(--down-color);
+            background-color: var(--down-bg);
+        }
+
+        .refresh-time {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 320px;
+            width: 100%;
+        }
+
+        .stablecoin-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-card {
+            background: #f9fafb;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .stat-change {
+            font-size: 0.875rem;
+        }
+
+        .news-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .news-item {
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: #fff;
+            transition: all 0.2s;
+        }
+
+        .news-item:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--shadow-sm);
+            transform: translateX(4px);
+        }
+
+        .news-item a {
+            text-decoration: none;
+            color: var(--text-primary);
+            font-weight: 500;
+            font-size: 1rem;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .news-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .badge {
+            background: #e5e7eb;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>全球资产实时行情监控</h1>
+            <div class="refresh-time" id="last-updated">等待更新...</div>
+        </div>
+
+        <!-- Market Overview -->
+        <div class="card">
+            <div class="section-title">市场概览 (Market Overview)</div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>资产名称</th>
+                            <th>当前价格</th>
+                            <th>涨跌额</th>
+                            <th>涨跌幅</th>
+                        </tr>
+                    </thead>
+                    <tbody id="price-table">
+                        <tr><td colspan="4" style="text-align:center; padding: 40px; color: var(--text-secondary);">加载数据中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- BTC Section -->
+        <div class="card">
+            <div class="section-title">BTC 行情看板 (Bitcoin Dashboard)</div>
+            
+            <div class="grid-2">
+                <!-- Left: Price Chart -->
+                <div>
+                    <h3 style="margin: 0 0 16px 0; font-size: 1rem; color: var(--text-secondary);">价格走势 (30 Days)</h3>
+                    <div style="background: #fff; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; height: 340px;">
+                        <canvas id="btcPriceChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Right: Depth Chart -->
+                <div>
+                    <h3 style="margin: 0 0 16px 0; font-size: 1rem; color: var(--text-secondary);">市场深度 (Market Depth)</h3>
+                    <div style="background: #fff; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; height: 340px;">
+                        <canvas id="depthChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 24px;">
+                <h3 style="margin: 0 0 16px 0; font-size: 1rem; color: var(--text-secondary);">实时盘口 (Order Book)</h3>
+                <div class="grid-2">
+                    <!-- Bids -->
+                    <div>
+                        <div style="margin-bottom: 12px; font-weight: 600; color: var(--down-color); display: flex; justify-content: space-between; border-bottom: 2px solid var(--down-bg); padding-bottom: 8px;">
+                            <span>买单 (Bids)</span>
+                            <span style="font-size: 0.8em; opacity: 0.8">Top 10</span>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="padding: 8px; background: none; font-size: 0.8em;">价格 (Price)</th>
+                                    <th style="padding: 8px; background: none; font-size: 0.8em; text-align: right;">数量 (Amount)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bids-table">
+                                <tr><td colspan="2" style="text-align:center;">加载中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Asks -->
+                    <div>
+                        <div style="margin-bottom: 12px; font-weight: 600; color: var(--up-color); display: flex; justify-content: space-between; border-bottom: 2px solid var(--up-bg); padding-bottom: 8px;">
+                            <span>卖单 (Asks)</span>
+                            <span style="font-size: 0.8em; opacity: 0.8">Top 10</span>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="padding: 8px; background: none; font-size: 0.8em;">价格 (Price)</th>
+                                    <th style="padding: 8px; background: none; font-size: 0.8em; text-align: right;">数量 (Amount)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="asks-table">
+                                <tr><td colspan="2" style="text-align:center;">加载中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Liquidation Section -->
+        <div class="card">
+            <div class="section-title">实时爆仓播报 (Real-time Liquidations - Binance)</div>
+            
+            <div class="grid-2">
+                <!-- Liquidation Stats (Session) -->
+                <div>
+                    <h3 style="margin: 0 0 16px 0; font-size: 1rem; color: var(--text-secondary);">本次会话捕获统计 (Session Stats)</h3>
+                    <div class="stat-card" style="margin-bottom: 16px;">
+                        <div class="stat-label">捕获爆仓总额 (Total Captured)</div>
+                        <div class="stat-value" id="liq-session-total">$0.00</div>
+                    </div>
+                    <div style="display: flex; gap: 16px;">
+                        <div class="stat-card" style="flex: 1;">
+                            <div class="stat-label">多单爆仓 (Longs)</div>
+                            <div class="stat-value" style="color: var(--down-color); font-size: 1.2rem;" id="liq-session-long">$0.00</div>
+                        </div>
+                        <div class="stat-card" style="flex: 1;">
+                            <div class="stat-label">空单爆仓 (Shorts)</div>
+                            <div class="stat-value" style="color: var(--up-color); font-size: 1.2rem;" id="liq-session-short">$0.00</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Liquidation List -->
+                <div>
+                    <h3 style="margin: 0 0 16px 0; font-size: 1rem; color: var(--text-secondary);">最新爆仓订单 (Recent Orders)</h3>
+                    <div style="overflow-y: auto; max-height: 300px; border: 1px solid var(--border-color); border-radius: 8px;">
+                        <table style="font-size: 0.9em;">
+                            <thead style="position: sticky; top: 0; background: #fff; z-index: 1;">
+                                <tr>
+                                    <th style="padding: 10px;">时间</th>
+                                    <th style="padding: 10px;">币种</th>
+                                    <th style="padding: 10px;">方向</th>
+                                    <th style="padding: 10px; text-align: right;">金额 (USD)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="liq-table">
+                                <tr><td colspan="4" style="text-align:center; padding: 20px; color: #999;">等待爆仓事件发生 (等待数据中)...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stablecoins Section -->
+        <div class="card">
+            <div class="section-title">稳定币数据 (Stablecoin Supply)</div>
+            <div class="grid-2" style="grid-template-columns: 2fr 1fr;">
+                <div id="stablecoin-list" class="stablecoin-grid">
+                    <div style="text-align:center; color: var(--text-secondary); width:100%;">加载中...</div>
+                </div>
+                <div style="background: #fff; border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; display: flex; align-items: center; justify-content: center; min-height: 250px;">
+                    <div style="position: relative; height: 220px; width: 100%;">
+                        <canvas id="stablecoinChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- News Section -->
+        <div class="card">
+            <div class="section-title">市场资讯 (Latest News)</div>
+            <div id="news-list" class="news-list">
+                <div style="text-align:center; padding: 40px; color: var(--text-secondary);">正在获取资讯...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function formatNumber(num) {
+            if (num >= 1e9) {
+                return (num / 1e9).toFixed(2) + ' B'; // Billion
+            }
+            if (num >= 1e6) {
+                return (num / 1e6).toFixed(2) + ' M'; // Million
+            }
+            return num.toLocaleString();
+        }
+
+        function updatePrices() {
+            fetch('/api/prices')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('price-table');
+                    tbody.innerHTML = '';
+                    
+                    if (data.error) {
+                        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">Error: ${data.error}</td></tr>`;
+                        return;
+                    }
+
+                    data.forEach(item => {
+                        const tr = document.createElement('tr');
+                        const isUp = item.color === 'red';
+                        const colorClass = isUp ? 'up' : (item.color === 'green' ? 'down' : '');
+                        const pillClass = isUp ? 'up' : (item.color === 'green' ? 'down' : '');
+                        const sign = isUp ? '+' : '';
+                        
+                        tr.innerHTML = `
+                            <td><a href="/detail/${item.code}" class="asset-link">${item.name}</a></td>
+                            <td class="price" style="color: ${isUp ? 'var(--up-color)' : (item.color === 'green' ? 'var(--down-color)' : 'inherit')}">${item.price}</td>
+                            <td class="change" style="color: ${isUp ? 'var(--up-color)' : (item.color === 'green' ? 'var(--down-color)' : 'inherit')}">${sign}${item.change}</td>
+                            <td><span class="change-pill ${pillClass}">${sign}${item.change_pct}</span></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+
+                    const now = new Date();
+                    document.getElementById('last-updated').textContent = `最后更新: ${now.toLocaleTimeString()}`;
+                })
+                .catch(error => {
+                    console.error('Error fetching prices:', error);
+                    document.getElementById('price-table').innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">无法连接服务器</td></tr>`;
+                });
+        }
+
+        let stablecoinChartInstance = null;
+
+        function updateStablecoins() {
+            fetch('/api/stablecoins')
+                .then(response => response.json())
+                .then(data => {
+                    // Update Cards
+                    const container = document.getElementById('stablecoin-list');
+                    container.innerHTML = '';
+                    
+                    // Support both new object format and potential error cases
+                    const coins = data.coins || [];
+                    const shares = data.market_share || { USDT: 0, USDC: 0, Others: 0 };
+                    
+                    coins.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'stat-card';
+                        
+                        const isPositive = item.change_24h >= 0;
+                        const colorClass = isPositive ? 'var(--up-color)' : 'var(--down-color)';
+                        const sign = isPositive ? '+' : '';
+                        
+                        div.innerHTML = `
+                            <div class="stat-label">
+                                <span>${item.name} (${item.symbol})</span>
+                            </div>
+                            <div class="stat-value">$${formatNumber(item.total_supply)}</div>
+                            <div class="stat-change" style="color: ${colorClass}">
+                                24h: ${sign}${formatNumber(item.change_24h)} (${sign}${item.change_24h_pct.toFixed(4)}%)
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+
+                    // Update Chart
+                    const ctx = document.getElementById('stablecoinChart').getContext('2d');
+                    
+                    // Calculate total for percentages in tooltip (optional, chart.js handles it usually)
+                    const total = shares.USDT + shares.USDC + shares.Others;
+                    
+                    const chartData = {
+                        labels: ['USDT', 'USDC', 'Others'],
+                        datasets: [{
+                            data: [shares.USDT, shares.USDC, shares.Others],
+                            backgroundColor: ['#26a17b', '#2775ca', '#e0e0e0'],
+                            hoverOffset: 4
+                        }]
+                    };
+
+                    const chartOptions = {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    boxWidth: 12
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: '市场占比 (Market Share)',
+                                padding: {
+                                    bottom: 10
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        let value = context.raw;
+                                        let total = context.chart._metasets[context.datasetIndex].total;
+                                        let percentage = (value / total * 100).toFixed(2) + '%';
+                                        return label + formatNumber(value) + ' (' + percentage + ')';
+                                    }
+                                }
+                            }
+                        }
+                    };
+
+                    if (stablecoinChartInstance) {
+                        stablecoinChartInstance.data = chartData;
+                        stablecoinChartInstance.update();
+                    } else {
+                        stablecoinChartInstance = new Chart(ctx, {
+                            type: 'doughnut',
+                            data: chartData,
+                            options: chartOptions
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching stablecoins:', error);
+                });
+        }
+
+        function updateNews() {
+            fetch('/api/news')
+                .then(response => response.json())
+                .then(data => {
+                    const newsList = document.getElementById('news-list');
+                    if (data.length === 0) {
+                        newsList.innerHTML = '<div style="text-align:center; color:#999;">暂无相关资讯</div>';
+                        return;
+                    }
+                    
+                    newsList.innerHTML = '';
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'news-item';
+                        div.innerHTML = `
+                            <a href="${item.url}" target="_blank">${item.title}</a>
+                            <div class="news-meta">
+                                <span class="badge">${item.source}</span>
+                                <span>${item.time}</span>
+                            </div>
+                        `;
+                        newsList.appendChild(div);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching news:', error);
+                    document.getElementById('news-list').innerHTML = '<div style="text-align:center; color:red;">获取资讯失败</div>';
+                });
+        }
+
+        let depthChartInstance = null;
+
+        function updateDepth() {
+            fetch('/api/depth/btcusdt')
+                .then(response => response.json())
+                .then(data => {
+                    const bidsBody = document.getElementById('bids-table');
+                    const asksBody = document.getElementById('asks-table');
+                    
+                    bidsBody.innerHTML = '';
+                    asksBody.innerHTML = '';
+                    
+                    if (!data.bids || !data.asks) {
+                        bidsBody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:red;">加载失败</td></tr>`;
+                        asksBody.innerHTML = `<tr><td colspan="2" style="text-align:center; color:red;">加载失败</td></tr>`;
+                        return;
+                    }
+
+                    // Render Top 10 Bids Table
+                    data.bids.slice(0, 10).forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td style="color: #388e3c; font-weight: bold;">${item.price.toFixed(2)}</td>
+                            <td>${item.amount.toFixed(5)}</td>
+                        `;
+                        bidsBody.appendChild(tr);
+                    });
+
+                    // Render Top 10 Asks Table
+                    data.asks.slice(0, 10).forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td style="color: #d32f2f; font-weight: bold;">${item.price.toFixed(2)}</td>
+                            <td>${item.amount.toFixed(5)}</td>
+                        `;
+                        asksBody.appendChild(tr);
+                    });
+                    
+                    // --- Update Depth Chart ---
+                    const ctx = document.getElementById('depthChart').getContext('2d');
+                    
+                    // Process Data for Chart
+                    // Bids: High Price -> Low Price. Cumulative Sum.
+                    // To plot left to right (Low Price -> High Price), we need to reverse Bids.
+                    // But standard depth chart usually plots:
+                    // X Axis: Price
+                    // Y Axis: Cumulative Volume
+                    // Bids (Green): Area under curve on left side.
+                    // Asks (Red): Area under curve on right side.
+                    
+                    // Prepare Bids Data
+                    // Binance returns Bids sorted by Price Descending (High to Low).
+                    // We need to calculate cumulative volume from Best Bid (High Price) to Worst Bid (Low Price).
+                    // Then for plotting on X-axis (Low to High), we just map the points.
+                    
+                    let bidsPoints = [];
+                    let cumVol = 0;
+                    for (let i = 0; i < data.bids.length; i++) {
+                        cumVol += data.bids[i].amount;
+                        bidsPoints.push({x: data.bids[i].price, y: cumVol});
+                    }
+                    // Sort Bids Points by X (Price) Ascending for Chart.js
+                    bidsPoints.sort((a, b) => a.x - b.x);
+                    
+                    // Prepare Asks Data
+                    // Binance returns Asks sorted by Price Ascending (Low to High).
+                    let asksPoints = [];
+                    cumVol = 0;
+                    for (let i = 0; i < data.asks.length; i++) {
+                        cumVol += data.asks[i].amount;
+                        asksPoints.push({x: data.asks[i].price, y: cumVol});
+                    }
+                    // Asks are already sorted by Price Ascending
+                    
+                    // Chart Configuration
+                    const chartData = {
+                        datasets: [
+                            {
+                                label: '买单 (Bids)',
+                                data: bidsPoints,
+                                borderColor: '#388e3c',
+                                backgroundColor: 'rgba(56, 142, 60, 0.2)',
+                                fill: true,
+                                tension: 0.1,
+                                pointRadius: 0
+                            },
+                            {
+                                label: '卖单 (Asks)',
+                                data: asksPoints,
+                                borderColor: '#d32f2f',
+                                backgroundColor: 'rgba(211, 47, 47, 0.2)',
+                                fill: true,
+                                tension: 0.1,
+                                pointRadius: 0
+                            }
+                        ]
+                    };
+
+                    const chartOptions = {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index',
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: '市场深度图 (Market Depth)',
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed.y !== null) {
+                                            label += context.parsed.y.toFixed(2) + ' BTC';
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                title: {
+                                    display: true,
+                                    text: '价格 (Price)'
+                                },
+                                ticks: {
+                                    callback: function(value) {
+                                        return value.toLocaleString();
+                                    }
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: '累计数量 (Cumulative Amount)'
+                                }
+                            }
+                        }
+                    };
+
+                    if (depthChartInstance) {
+                        depthChartInstance.data = chartData;
+                        depthChartInstance.update('none'); // 'none' mode prevents animation for smoother updates
+                    } else {
+                        depthChartInstance = new Chart(ctx, {
+                            type: 'line',
+                            data: chartData,
+                            options: chartOptions
+                        });
+                    }
+
+                })
+                .catch(error => {
+                    console.error('Error fetching depth:', error);
+                });
+        }
+
+        let btcPriceChartInstance = null;
+
+        function updateBTCPriceChart() {
+            fetch('/api/history/BTCUSDT')
+                .then(response => response.json())
+                .then(data => {
+                    const ctx = document.getElementById('btcPriceChart').getContext('2d');
+                    
+                    if (data.error || !data.dates || data.dates.length === 0) {
+                        // Handle error or empty data
+                        return;
+                    }
+
+                    const chartData = {
+                        labels: data.dates,
+                        datasets: [{
+                            label: 'BTC Price (USD)',
+                            data: data.prices,
+                            borderColor: '#F7931A', // BTC Color
+                            backgroundColor: 'rgba(247, 147, 26, 0.1)',
+                            fill: true,
+                            tension: 0.1,
+                            pointRadius: 1,
+                            borderWidth: 2
+                        }]
+                    };
+
+                    const chartOptions = {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index',
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return 'Price: $' + context.parsed.y.toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                display: true,
+                                grid: {
+                                    display: false
+                                }
+                            },
+                            y: {
+                                display: true,
+                                position: 'right'
+                            }
+                        }
+                    };
+
+                    if (btcPriceChartInstance) {
+                        btcPriceChartInstance.data = chartData;
+                        btcPriceChartInstance.update('none');
+                    } else {
+                        btcPriceChartInstance = new Chart(ctx, {
+                            type: 'line',
+                            data: chartData,
+                            options: chartOptions
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching BTC history:', error);
+                });
+        }
+
+        let liqSessionStats = {
+            total: 0,
+            long: 0,
+            short: 0,
+            seenIds: new Set() // To avoid duplicates if we poll frequently
+        };
+
+        function updateLiquidations() {
+            fetch('/api/liquidations')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('liq-table');
+                    
+                    if (data.length === 0) {
+                        // If empty, keep existing or show waiting message if empty
+                        if (tbody.children.length === 0 || tbody.innerHTML.includes('等待')) {
+                             tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 20px; color: #999;">暂无最新爆仓数据 (或网络连接中...)</td></tr>';
+                        }
+                        return;
+                    }
+                    
+                    // Filter new items for stats
+                    let newItems = [];
+                    data.forEach(item => {
+                        // Create a unique ID for simple dedup: symbol_time_amount
+                        const id = `${item.symbol}_${item.time}_${item.amount_usd}`;
+                        if (!liqSessionStats.seenIds.has(id)) {
+                            liqSessionStats.seenIds.add(id);
+                            newItems.push(item);
+                            
+                            // Update stats
+                            liqSessionStats.total += item.amount_usd;
+                            if (item.side === 'Long') {
+                                liqSessionStats.long += item.amount_usd;
+                            } else {
+                                liqSessionStats.short += item.amount_usd;
+                            }
+                        }
+                    });
+                    
+                    // Update Stats UI
+                    document.getElementById('liq-session-total').textContent = '$' + formatNumber(liqSessionStats.total);
+                    document.getElementById('liq-session-long').textContent = '$' + formatNumber(liqSessionStats.long);
+                    document.getElementById('liq-session-short').textContent = '$' + formatNumber(liqSessionStats.short);
+                    
+                    // Render List (Re-render full list from API to keep sort order, or prepend new ones?)
+                    // Let's just render the data from API as it is sorted by time desc.
+                    // But we might want to keep older ones in the list? 
+                    // For simplicity, let's just show what API returns (Top 20 recent).
+                    
+                    tbody.innerHTML = '';
+                    data.forEach(item => {
+                        const tr = document.createElement('tr');
+                        
+                        const date = new Date(item.time);
+                        const timeStr = date.toLocaleTimeString();
+                        
+                        const isLong = item.side === 'Long';
+                        const sideColor = isLong ? 'var(--down-color)' : 'var(--up-color)'; // Long Liq = Price Down (Green in CN/Red in US? Usually Long Liq is Red candle/sell pressure)
+                        // Wait, Long Liquidated means forced SELL. Sell pressure. 
+                        // Color convention: 
+                        // Usually Long Liquidation is shown as Red (Sell).
+                        // Short Liquidation is shown as Green (Buy).
+                        // Let's stick to standard: Long Liq = Red (Sell), Short Liq = Green (Buy).
+                        // But in our theme: Up = Red, Down = Green.
+                        // Long Liq (Sell) -> Price Down -> Green? No that's confusing.
+                        // Let's use: Long Liq = Sell (Green in our theme for Down? No, usually Red/Green is Up/Down).
+                        // Let's just use explicit colors.
+                        // Long Liq (被强平多单) -> 卖出平仓 -> 红色 (Red)
+                        // Short Liq (被强平空单) -> 买入平仓 -> 绿色 (Green)
+                        // But wait, our theme: .up is Red, .down is Green.
+                        // Long Liq -> Sell -> Price Down -> Green?
+                        // Let's just use: Long Liq (Sell) = Red, Short Liq (Buy) = Green.
+                        
+                        const rowColor = isLong ? '#d32f2f' : '#059669';
+                        const sideText = isLong ? '多单 (Long)' : '空单 (Short)';
+                        
+                        // Highlight large orders (> $100k)
+                        const isLarge = item.amount_usd > 100000;
+                        const bgStyle = isLarge ? 'background-color: rgba(255, 235, 59, 0.1);' : '';
+                        
+                        tr.style = bgStyle;
+                        tr.innerHTML = `
+                            <td style="padding: 10px; color: #666;">${timeStr}</td>
+                            <td style="padding: 10px; font-weight: bold;">${item.symbol}</td>
+                            <td style="padding: 10px; color: ${rowColor}; font-weight: 600;">${sideText}</td>
+                            <td style="padding: 10px; text-align: right; font-family: monospace;">$${formatNumber(item.amount_usd)}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching liquidations:', error);
+                });
+        }
+
+        // Initial update
+        updatePrices();
+        updateNews();
+        updateStablecoins();
+        updateDepth();
+        updateBTCPriceChart();
+        updateLiquidations();
+
+        // Update prices every 5 seconds
+        setInterval(updatePrices, 5000);
+        setInterval(updateDepth, 5000); // Update depth every 5s
+        setInterval(updateLiquidations, 5000); // Update liq every 5s
+        
+        // Update news and stablecoins every 60 seconds
+        setInterval(updateNews, 60000);
+        setInterval(updateStablecoins, 60000);
+        setInterval(updateBTCPriceChart, 60000); // Update price chart every 60s
+    </script>
+</body>
+</html>
